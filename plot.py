@@ -10,8 +10,14 @@ from matplotlib.backend_bases import NavigationToolbar2
 def prev_plot(self, *args, **kwargs):
     print('prev_plot')
 
+i = 0
+
 def next_plot(self, *args, **kwargs):
     print('next_plot')
+    global i
+    ax.plot([i], [i], 's')
+    plt.draw()
+    i += 1
 
 NavigationToolbar2.back = prev_plot
 NavigationToolbar2.forward = next_plot
