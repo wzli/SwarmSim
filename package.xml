@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>swarm_sim</name>
+  <version>0.0.0</version>
+  <description>Simuate bin routing in RR Swarm</description>
+  <license>Commercial</license>
+
+  <maintainer email="wzli@rapyuta-robotics.com">WenZheng Li</maintainer>
+
+  <depend>decentralized_path_auction</depend>
+  <buildtool_depend>catkin</buildtool_depend>
+</package>
