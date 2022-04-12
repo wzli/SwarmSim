@@ -18,8 +18,7 @@ bool save_graph(const Graph& graph, const char* file) {
 }
 
 TEST(map_gen, generate) {
-    MapGen map_gen;
-    map_gen.generate_graph(12, 12);
+    MapGen map_gen(MapGen::Config{12, 21});
     save_graph(map_gen.graph, "graph.csv");
 }
 
