@@ -19,6 +19,7 @@ class BinRouter {
     enum Error {
         SUCCESS,
     };
+
 public:
     Error updateBinNode(std::string_view id, NodePtr node);
     Error requestBinNode(std::string_view id, NodePtr node);
@@ -31,4 +32,4 @@ private:
     PathSync _path_sync;
 };
 
-}
+}  // namespace swarm_sim

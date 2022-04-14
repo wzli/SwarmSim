@@ -30,6 +30,7 @@ add_library(${PROJECT_NAME}
     src/bin_router.cpp
 )
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+target_compile_definitions(${PROJECT_NAME} PRIVATE DPA_NDIM=3)
 
 if (CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_${PROJECT_NAME}

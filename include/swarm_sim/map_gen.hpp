@@ -13,9 +13,10 @@ struct MapGen {
     struct Config {
         size_t rows;
         size_t cols;
+        size_t floors;
         size_t n_bins;
         size_t n_bots;
-        float spacing = 1.0f;
+        std::vector<std::pair<size_t, size_t>> elevators;
     };
 
     MapGen(const Config& config);
@@ -25,4 +26,4 @@ struct MapGen {
     std::vector<NodePtr> bots;
 };
 
-}
+}  // namespace swarm_sim
