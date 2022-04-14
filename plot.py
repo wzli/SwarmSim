@@ -6,6 +6,22 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 from matplotlib.backend_bases import NavigationToolbar2
 
+colors = [
+    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
+    '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+]
+
+COL_TYPE = 0
+COL_ID = 1
+COL_X = 2
+COL_Y = 3
+COL_Z = 4
+COL_T = 5
+
+TYPE_ELEVATOR = 0
+TYPE_BIN = 1
+TYPE_ROBOT = 2
+
 
 def prev_plot(self, *args, **kwargs):
     print('prev_plot')
@@ -22,37 +38,46 @@ def next_plot(self, *args, **kwargs):
 NavigationToolbar2.back = prev_plot
 NavigationToolbar2.forward = next_plot
 
-parser = argparse.ArgumentParser(description='plot paths')
-parser.add_argument('paths')
-parser.add_argument('-g', '--graph')
+parser = argparse.ArgumentParser(description='plot data')
+parser.add_argument('data')
 args = parser.parse_args()
 
-fig = plt.figure()
-ax = fig.gca(projection='3d')
-colors = [
-    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
-    '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
-]
+data = np.genfromtxt(args.data, delimiter=',', skip_header=1)
+elevators = data[data[:, COL_TYPE] == TYPE_ELEVATOR]
+floors = np.sort(np.unique(data[:, COL_Z]))
+x_ticks = np.arange(data[:, COL_X].max() + 1)
+y_ticks = np.arange(data[:, COL_Y].max() + 1)
 
-if args.graph:
-    graph = np.genfromtxt(args.graph, delimiter=',', skip_header=1)
-    ax.quiver(graph[:, 0],
-              graph[:, 1],
-              np.zeros(len(graph)),
-              graph[:, 2] - graph[:, 0],
-              graph[:, 3] - graph[:, 1],
-              np.zeros(len(graph)),
-              arrow_length_ratio = 0.08,
-              color='black',
-              )
+for floor in floors:
+    floor_data = data[data[:, COL_Z] == floor]
+    bins = floor_data[floor_data[:, COL_TYPE] == TYPE_BIN]
+    bots = floor_data[floor_data[:, COL_TYPE] == TYPE_ROBOT]
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    ax.set_zlim3d(0)
+    ax.zaxis.set_ticks([])
+    ax.set_xticks(x_ticks)
+    ax.set_yticks(y_ticks)
+
+    ax.plot(elevators[:, COL_X], elevators[:, COL_Y], '^', markersize=10)
+    ax.plot(bins[:, COL_X], bins[:, COL_Y], 's', markersize=10)
+    ax.plot(bots[:, COL_X], bots[:, COL_Y], 'o', markersize=10)
 
 
+
+
+
+'''
 data = np.genfromtxt(args.paths,
                      delimiter=',',
                      skip_header=1,
                      usecols=(1, 2, 3, 5))
 
+# max + 1 because arange doesn't include the highest
+# TODO: change to set instead
 for i in np.arange(data[:, 0].max() + 1):
+    # this is to filter out entries except the robot
     path = data[data[:, 0] == i]
     ax.quiver(path[:-1, 1],
               path[:-1, 2],
@@ -62,16 +87,6 @@ for i in np.arange(data[:, 0].max() + 1):
               np.diff(path[:, 3]),
               arrow_length_ratio = 0.08,
               color=colors[int(i) % len(colors)])
-'''
-    ax.quiver(path[:, 1],
-              path[:, 2],
-              path[:, 3],
-              np.zeros(len(path)),
-              np.zeros(len(path)),
-              1 - path[:, 3].clip(1, 2),
-              path[:, 3],
-              color='gray')
-'''
 
 x = [1, 5, 10]
 y = [1, 5, 10]
@@ -82,5 +97,7 @@ ax.zaxis.set_ticks([])
 #ax.set_zlim3d(0, 5)
 #ax.set_xlim3d(0, 100)
 #ax.set_ylim3d(-50, 5)
+'''
+plt.grid()
 
 plt.show()

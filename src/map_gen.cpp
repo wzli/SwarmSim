@@ -38,6 +38,13 @@ MapGen::MapGen(const Config& config) {
         }
     }
     assert(nodes.size() == config.cols * config.rows * config.floors);
+
+    // add elevator nodes to list
+    for (auto& [col, row] : config.elevators) {
+        auto ele = graph.findNode(Point{static_cast<float>(col), static_cast<float>(row), 0});
+        assert(ele);
+        elevators.emplace_back(ele);
+    }
     // add edges to grid of nodes
     for (size_t flr = 0; flr < config.floors; ++flr) {
         for (size_t row = 0; row < config.rows; ++row) {

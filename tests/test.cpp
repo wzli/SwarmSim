@@ -3,17 +3,26 @@
 
 using namespace swarm_sim;
 
-bool save_graph(const Graph& graph, const char* file) {
+bool save_map(const MapGen& map_gen, const char* file) {
     auto fp = fopen(file, "w");
     if (!fp) {
         return false;
     }
-    fprintf(fp, "src_pos_x, src_pos_y, dst_pos_x, dst_pos_y\r\n");
-    for (auto& [pos, node] : graph.getNodes()) {
-        for (auto& adj_node : node->edges) {
-            fprintf(fp, "%f, %f, %f, %f\r\n", pos.get<0>(), pos.get<1>(),
-                    adj_node->position.get<0>(), adj_node->position.get<1>());
-        }
+    fprintf(fp, "type, id, x, y, z, t\r\n");
+    int id = 0;
+    for (auto& ele : map_gen.elevators) {
+        fprintf(fp, "%u, %u, %f, %f, %f\r\n", 0, id++, ele->position.get<0>(),
+                ele->position.get<1>(), ele->position.get<2>());
+    }
+    id = 0;
+    for (auto& bin : map_gen.bins) {
+        fprintf(fp, "%u, %u, %f, %f, %f\r\n", 1, id++, bin->position.get<0>(),
+                bin->position.get<1>(), bin->position.get<2>());
+    }
+    id = 0;
+    for (auto& bot : map_gen.bots) {
+        fprintf(fp, "%u, %u, %f, %f, %f\r\n", 2, id++, bot->position.get<0>(),
+                bot->position.get<1>(), bot->position.get<2>());
     }
     return !fclose(fp);
 }
@@ -26,7 +35,7 @@ TEST(map_gen, generate) {
             10,                        // n_bots,
             // elevators
             {{0, 0}, {0, 9}, {9, 0}, {9, 9}}});
-    save_graph(map_gen.graph, "graph.csv");
+    save_map(map_gen, "map.csv");
 }
 
 int main(int argc, char* argv[]) {
