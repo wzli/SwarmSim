@@ -32,10 +32,12 @@ MapGen::MapGen(const Config& config) {
                                           Point{static_cast<float>(col), static_cast<float>(row),
                                                   static_cast<float>(flr)},
                                           Node::DEFAULT);
+                assert(node);
                 nodes.emplace_back(node);
             }
         }
     }
+    assert(nodes.size() == config.cols * config.rows * config.floors);
     // add edges to grid of nodes
     for (size_t flr = 0; flr < config.floors; ++flr) {
         for (size_t row = 0; row < config.rows; ++row) {

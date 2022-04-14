@@ -19,7 +19,13 @@ bool save_graph(const Graph& graph, const char* file) {
 }
 
 TEST(map_gen, generate) {
-    MapGen map_gen(MapGen::Config{12, 21});
+    MapGen map_gen(MapGen::Config{10,  // rows
+            10,                        // cols
+            3,                         // floors
+            50,                        // n_bins
+            10,                        // n_bots,
+            // elevators
+            {{0, 0}, {0, 9}, {9, 0}, {9, 9}}});
     save_graph(map_gen.graph, "graph.csv");
 }
 
