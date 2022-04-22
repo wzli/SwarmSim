@@ -4,15 +4,14 @@
 namespace swarm_sim {
 
 BinRouter::Error BinRouter::updateBinNode(std::string_view id, NodePtr node) {
-    auto [bin, inserted] =
-            _bins.emplace(id, Bin{{{node}}, PathSearch(PathSearch::Config{std::string(id)})});
+    auto [bin, inserted] = _bins.emplace(id, PathPlanner(PathSearch::Config{std::string(id)}));
     // bid did not exist before, now it is added
     if (inserted) {
         // TODO: set as fallback path on path sync
         return SUCCESS;
     }
     // if update node is on current path update route sync progress
-    auto& path = bin->second.path;
+    auto& path = bin->second.getPath();
     auto found = std::find_if(
             path.begin(), path.end(), [&node](auto visit) { return visit.node == node; });
     if (found == path.end()) {

@@ -1,22 +1,14 @@
 #pragma once
-#include <decentralized_path_auction/path_search.hpp>
-#include <decentralized_path_auction/path_sync.hpp>
 
+#include <swarm_sim/path_planner.hpp>
 #include <string>
 #include <unordered_map>
 
 namespace swarm_sim {
 using namespace decentralized_path_auction;
 
-struct Bin {
-    Path path;
-    PathSearch path_search;
-    PathSync::Status path_status{};
-    size_t path_id = 0;
-};
-
 class BinRouter {
-    using Bins = std::unordered_map<std::string, Bin>;
+    using Bins = std::unordered_map<std::string, PathPlanner>;
     using BinQueue = std::vector<std::string>;
 
     enum Error {

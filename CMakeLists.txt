@@ -28,6 +28,7 @@ include_directories(
 add_library(${PROJECT_NAME}
     src/map_gen.cpp
     src/bin_router.cpp
+    src/path_planner.cpp
 )
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 
