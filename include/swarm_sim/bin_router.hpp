@@ -8,26 +8,36 @@ namespace swarm_sim {
 using namespace decentralized_path_auction;
 
 class BinRouter {
-    using Bins = std::unordered_map<std::string, PathPlanner>;
-    using BinQueue = std::vector<std::string>;
-
     enum Error {
         SUCCESS,
+        FAILURE,
+    };
+
+    enum DataEntryType {
+        ELEVATOR,
+        BIN,
+        ROBOT,
+        PATH,
     };
 
 public:
-    Error updateBinNode(std::string_view id, NodePtr node);
-    Error requestBinNode(std::string_view id, NodePtr node);
+    struct Config {
+        PathSearch::Config path_search_config;
+        float duration;
+        float fallback_cost;
+        size_t iterations;
+        size_t rounds;
+        bool allow_block;
+    };
 
-    const Bins& getBins() const { return _bins; }
-    const BinQueue& getBinQueue() const { return _bin_queue; }
+    Error generateBinPaths(const Config& config, const Nodes& src_vec,
+            const std::vector<Nodes>& dst_vec, FILE* save_file = nullptr);
 
 private:
-    void updatePaths();
+    void savePaths(const PathSync& path_sync, FILE* save_file);
 
-    Bins _bins;
-    BinQueue _bin_queue;
-    PathSync _path_sync;
+    MultiPathPlanner _multi_path_planner;
+    std::vector<MultiPathPlanner::Request> _requests;
 };
 
 }  // namespace swarm_sim

@@ -30,23 +30,23 @@ private:
 };
 
 class MultiPathPlanner {
+public:
     struct Request {
-        NodePtr src;
         Nodes dst;
         float duration;
         PathSearch::Config config;
         PathPlanner::PlanArgs args;
     };
 
-public:
     struct PlanResult {
         const Request* request;
         PathSearch::Error search_error = PathSearch::SUCCESS;
         PathSync::Error sync_error = PathSync::SUCCESS;
     };
-    PlanResult plan(const std::vector<Request>& requests, size_t rounds, bool allow_block = true);
+    PlanResult plan(const std::vector<Request>& requests, int rounds, bool allow_block = true);
 
     const PathSync& getPathSync() const { return _path_sync; }
+    PathSync& getPathSync() { return _path_sync; }
 
 private:
     PathSync _path_sync;

@@ -33,13 +33,14 @@ PathSearch::Error PathPlanner::replan(const PlanArgs& args) {
 }
 
 MultiPathPlanner::PlanResult MultiPathPlanner::plan(
-        const std::vector<Request>& requests, size_t rounds, bool allow_block) {
+        const std::vector<Request>& requests, int rounds, bool allow_block) {
     _path_sync.clearPaths();
     _path_planners.clear();
     // initialize path planners and set destination
     for (auto& req : requests) {
         _path_planners.emplace_back(req.config);
-        PlanResult result{&req, _path_planners.back().plan(req.args, req.dst, req.duration)};
+        PlanResult result{
+                &req, _path_planners.back().getPathSearch().setDestinations(req.dst, req.duration)};
         if (result.search_error) {
             return result;
         }
@@ -65,12 +66,13 @@ MultiPathPlanner::PlanResult MultiPathPlanner::plan(
                     return status.error == PathSync::SUCCESS ||
                            (status.error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
                 })) {
+                rounds = 0;
                 break;
             }
             ++result.request;
         }
     }
-    return PlanResult{nullptr};
+    return PlanResult{nullptr, rounds ? PathSearch::SUCCESS : PathSearch::ITERATIONS_REACHED};
 }
 
 }  // namespace decentralized_path_auction

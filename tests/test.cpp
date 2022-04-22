@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <swarm_sim/map_gen.hpp>
+#include <swarm_sim/bin_router.hpp>
 
 using namespace swarm_sim;
 
@@ -11,19 +12,36 @@ bool save_map(const MapGen& map_gen, const char* file) {
     fprintf(fp, "type, id, x, y, z, t\r\n");
     int id = 0;
     for (auto& ele : map_gen.elevators) {
-        fprintf(fp, "%u, %u, %f, %f, %f\r\n", 0, id++, ele->position.get<0>(),
-                ele->position.get<1>(), ele->position.get<2>());
+        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", 0, id++, ele->position.get<0>(),
+                ele->position.get<1>(), ele->position.get<2>(), 0);
     }
     id = 0;
     for (auto& bin : map_gen.bins) {
-        fprintf(fp, "%u, %u, %f, %f, %f\r\n", 1, id++, bin->position.get<0>(),
-                bin->position.get<1>(), bin->position.get<2>());
+        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", 1, id++, bin->position.get<0>(),
+                bin->position.get<1>(), bin->position.get<2>(), 0);
     }
     id = 0;
     for (auto& bot : map_gen.bots) {
-        fprintf(fp, "%u, %u, %f, %f, %f\r\n", 2, id++, bot->position.get<0>(),
-                bot->position.get<1>(), bot->position.get<2>());
+        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", 2, id++, bot->position.get<0>(),
+                bot->position.get<1>(), bot->position.get<2>(), 0);
     }
+
+    BinRouter router;
+    BinRouter::Config config{
+            PathSearch::Config{""},
+            FLT_MAX,
+            FLT_MAX,
+            10000,
+            100,
+            false,
+    };
+    std::vector<Nodes> dst_vec(map_gen.bins.size());
+    auto dst_node = map_gen.graph.findNode({1, 1, 1});
+    for (int i = 0; i < 3; ++i) {
+        dst_vec[i] = {map_gen.graph.findNode({i + 1, i + 1, i})};
+        assert(dst_vec[i][0]);
+    }
+    assert(!router.generateBinPaths(config, map_gen.bins, dst_vec, fp));
     return !fclose(fp);
 }
 

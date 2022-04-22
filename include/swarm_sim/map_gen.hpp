@@ -22,9 +22,9 @@ struct MapGen {
     MapGen(const Config& config);
 
     Graph graph;
-    std::vector<NodePtr> elevators;
-    std::vector<NodePtr> bins;
-    std::vector<NodePtr> bots;
+    Nodes elevators;
+    Nodes bins;
+    Nodes bots;
 };
 
 }  // namespace swarm_sim
