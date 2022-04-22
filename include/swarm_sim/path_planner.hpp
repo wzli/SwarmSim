@@ -13,6 +13,7 @@ public:
     // getters
     PathSearch& getPathSearch() { return _path_search; }
     const Path& getPath() const { return _path; }
+    const std::string& getId() const { return _path_search.getConfig().agent_id; }
 
     struct PlanArgs {
         Nodes src;

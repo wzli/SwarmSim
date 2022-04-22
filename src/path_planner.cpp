@@ -4,7 +4,7 @@
 namespace decentralized_path_auction {
 
 PathSearch::Error PathPlanner::plan(const PlanArgs& args, Nodes dst, float duration) {
-    if (auto err = _path_search.reset(std::move(dst), duration)) {
+    if (auto err = _path_search.setDestinations(std::move(dst), duration)) {
         return err;
     }
     _path = {_path_search.selectSource(args.src)};
@@ -26,7 +26,7 @@ PathSearch::Error PathPlanner::replan(const PlanArgs& args) {
     auto err = _path_search.iterate(_path, args.iterations, args.fallback_cost);
     // reset and try again if path search failed
     if (err > PathSearch::FALLBACK_DIVERTED) {
-        _path_search.reset();
+        _path_search.resetCostEstimates();
         err = _path_search.iterate(_path, args.iterations, args.fallback_cost);
     }
     return err;
@@ -54,17 +54,16 @@ MultiPathPlanner::PlanResult MultiPathPlanner::plan(
                 return result;
             }
             // add path to path_sync
-            result.sync_error = _path_sync.updatePath(
-                    result.request->config.agent_id, planner.getPath(), path_id++);
+            result.sync_error =
+                    _path_sync.updatePath(planner.getId(), planner.getPath(), path_id++);
             if (result.sync_error) {
                 return result;
             }
             // terminate when all paths satisfactory
             if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
-                    auto error = std::get<0>(_path_sync.checkWaitConditions(
-                            p.getPathSearch().editConfig().agent_id));
-                    return error == PathSync::SUCCESS ||
-                           (error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
+                    auto status = _path_sync.checkWaitStatus(p.getId());
+                    return status.error == PathSync::SUCCESS ||
+                           (status.error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
                 })) {
                 break;
             }
