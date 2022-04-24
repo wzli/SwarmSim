@@ -32,15 +32,21 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
 void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file) {
     assert(save_file);
     for (auto& [id, info] : path_sync.getPaths()) {
-        if (info.path.size() == 1) {
+        if (info.path.size() < 2) {
             continue;
         }
+        float z = info.path.front().node->position.get<2>();
         for (auto& visit : info.path) {
             auto& bids = visit.node->auction.getBids();
-            fprintf(save_file, "%u, %d, %f, %f, %f, %ld\r\n", PATH, std::stoi(id),
-                    visit.node->position.get<0>(), visit.node->position.get<1>(),
-                    visit.node->position.get<2>(),
-                    std::distance(bids.find(visit.price), bids.end()) - 1);
+            for (;;) {
+                fprintf(save_file, "%u, %d, %f, %f, %f, %ld\r\n", PATH, std::stoi(id),
+                        visit.node->position.get<0>(), visit.node->position.get<1>(), z,
+                        std::distance(bids.find(visit.price), bids.end()) - 1);
+                if (z == visit.node->position.get<2>()) {
+                    break;
+                }
+                z = visit.node->position.get<2>();
+            }
         }
     }
 }
