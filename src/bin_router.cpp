@@ -12,9 +12,11 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
         auto& src = src_vec[i];
         auto& dst = dst_vec[i];
         auto path_search_config = config.path_search_config;
+        float fallback_cost = dst.size() == 1 && dst.front() == src ? config.blocking_fallback_cost
+                                                                    : config.fallback_cost;
         path_search_config.agent_id = std::to_string(i);
         MultiPathPlanner::Request request{dst, config.duration, std::move(path_search_config),
-                {{src}, config.iterations, config.fallback_cost}};
+                {{src}, config.iterations, fallback_cost}};
         _requests.emplace_back(std::move(request));
     }
     // plan routes

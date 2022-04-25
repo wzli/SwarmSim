@@ -31,11 +31,17 @@ bool save_map(const MapGen& map_gen, const char* file) {
             PathSearch::Config{""},
             FLT_MAX,
             FLT_MAX,
+            10,
             10000,
             100,
             false,
     };
-    std::vector<Nodes> dst_vec(map_gen.bins.size());
+    std::vector<Nodes> dst_vec;
+    dst_vec.reserve(map_gen.bins.size());
+    for (auto& src : map_gen.bins) {
+        dst_vec.emplace_back(Nodes{src});
+    }
+
     auto dst_node = map_gen.graph.findNode({1, 1, 1});
     for (int i = 0; i < 3; ++i) {
         dst_vec[i] = {map_gen.graph.findNode({i + 1, i + 1, i})};
@@ -49,7 +55,7 @@ TEST(map_gen, generate) {
     MapGen map_gen(MapGen::Config{10,  // rows
             10,                        // cols
             3,                         // floors
-            50,                        // n_bins
+            200,                       // n_bins
             10,                        // n_bots,
             // elevators
             {{0, 0}, {0, 9}, {9, 0}, {9, 9}}});

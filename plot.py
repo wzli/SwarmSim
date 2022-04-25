@@ -7,11 +7,20 @@ from mpl_toolkits.mplot3d import axes3d
 from matplotlib.backend_bases import NavigationToolbar2
 
 import signal
+
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 colors = [
-    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b',
-    '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
 ]
 
 COL_TYPE = 0
@@ -28,26 +37,29 @@ TYPE_PATH = 3
 
 
 def prev_plot(self, *args, **kwargs):
-    print('prev_plot')
+    print("prev_plot")
+
 
 i = 0
 
+
 def next_plot(self, *args, **kwargs):
-    print('next_plot')
+    print("next_plot")
     global i
-    ax.plot([i], [i], 's')
+    ax.plot([i], [i], "s")
     plt.draw()
     i += 1
+
 
 NavigationToolbar2.back = prev_plot
 NavigationToolbar2.forward = next_plot
 
-parser = argparse.ArgumentParser(description='plot data')
-parser.add_argument('data')
+parser = argparse.ArgumentParser(description="plot data")
+parser.add_argument("data")
 args = parser.parse_args()
 
 # parse csv
-data = np.genfromtxt(args.data, delimiter=',', skip_header=1)
+data = np.genfromtxt(args.data, delimiter=",", skip_header=1)
 # extract elevator entries
 elevators = data[data[:, COL_TYPE] == TYPE_ELEVATOR]
 # extract floors (sorted array of unique z values)
@@ -70,21 +82,23 @@ for floor in floors:
     paths = floor_data[floor_data[:, COL_TYPE] == TYPE_PATH]
 
     # setup figure
-    fig = plt.figure(num = f"Floor {int(floor)}")
-    ax = fig.add_subplot(projection='3d')
+    fig = plt.figure(num=f"Floor {int(floor)}")
+    ax = fig.add_subplot(projection="3d")
     ax.set_zlim3d(0)
     ax.set_box_aspect(aspect)
     ax.set_xticks(x_ticks)
     ax.set_yticks(y_ticks)
     ax.zaxis.set_ticks(t_ticks)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Order')
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Order")
 
     # plot markers for elevators robots and bins
-    ax.plot(elevators[:, COL_X], elevators[:, COL_Y], '^', color='purple', markersize=10)
-    ax.plot(bins[:, COL_X], bins[:, COL_Y], 's', color='darkorange', markersize=10)
-    ax.plot(bots[:, COL_X], bots[:, COL_Y], 'o', color='red', markersize=10)
+    ax.plot(
+        elevators[:, COL_X], elevators[:, COL_Y], "^", color="purple", markersize=10
+    )
+    ax.plot(bins[:, COL_X], bins[:, COL_Y], "s", color="tan", markersize=10)
+    ax.plot(bots[:, COL_X], bots[:, COL_Y], "o", color="red", markersize=10)
 
     # label markers with their ID
     for i, label in enumerate(elevators[:, COL_ID]):
@@ -96,16 +110,18 @@ for floor in floors:
 
     # extract unique paths on current floor
     for path_id in np.unique(paths[:, COL_ID]):
-        path = paths[paths[:, COL_ID] == path_id];
+        path = paths[paths[:, COL_ID] == path_id]
         if len(path) == 1:
             continue
-        ax.quiver(path[:-1, COL_X],
-                  path[:-1, COL_Y],
-                  path[:-1, COL_T],
-                  np.diff(path[:, COL_X]),
-                  np.diff(path[:, COL_Y]),
-                  np.diff(path[:, COL_T]),
-                  color=colors[int(path_id) % len(colors)])
+        ax.quiver(
+            path[:-1, COL_X],
+            path[:-1, COL_Y],
+            path[:-1, COL_T],
+            np.diff(path[:, COL_X]),
+            np.diff(path[:, COL_Y]),
+            np.diff(path[:, COL_T]),
+            color=colors[int(path_id) % len(colors)],
+        )
 
 plt.grid()
 plt.show()

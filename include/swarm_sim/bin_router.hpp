@@ -25,6 +25,7 @@ public:
         PathSearch::Config path_search_config;
         float duration;
         float fallback_cost;
+        float blocking_fallback_cost;
         size_t iterations;
         size_t rounds;
         bool allow_block;
