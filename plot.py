@@ -51,10 +51,11 @@ data = np.genfromtxt(args.data, delimiter=',', skip_header=1)
 # extract elevator entries
 elevators = data[data[:, COL_TYPE] == TYPE_ELEVATOR]
 # extract floors (sorted array of unique z values)
-floors = np.sort(np.unique(data[:, COL_Z]))
+floors = np.unique(data[:, COL_Z])
 # set axis ticks to max range of x and y
 x_ticks = np.arange(data[:, COL_X].max() + 1)
 y_ticks = np.arange(data[:, COL_Y].max() + 1)
+t_ticks = np.arange(data[:, COL_T].max() + 1)
 aspect = (np.ptp(data[:, COL_X]), np.ptp(data[:, COL_Y]), np.ptp(data[:, COL_T]))
 
 # each floor has it's own plot figure
@@ -70,19 +71,20 @@ for floor in floors:
 
     # setup figure
     fig = plt.figure(num = f"Floor {int(floor)}")
-    ax = fig.gca(projection='3d')
+    ax = fig.add_subplot(projection='3d')
     ax.set_zlim3d(0)
     ax.set_box_aspect(aspect)
-    ax.zaxis.set_ticks([])
     ax.set_xticks(x_ticks)
     ax.set_yticks(y_ticks)
+    ax.zaxis.set_ticks(t_ticks)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
+    ax.set_zlabel('Order')
 
     # plot markers for elevators robots and bins
-    ax.plot(elevators[:, COL_X], elevators[:, COL_Y], '^', markersize=10)
-    ax.plot(bins[:, COL_X], bins[:, COL_Y], 's', markersize=10)
-    ax.plot(bots[:, COL_X], bots[:, COL_Y], 'o', markersize=10)
+    ax.plot(elevators[:, COL_X], elevators[:, COL_Y], '^', color='purple', markersize=10)
+    ax.plot(bins[:, COL_X], bins[:, COL_Y], 's', color='darkorange', markersize=10)
+    ax.plot(bots[:, COL_X], bots[:, COL_Y], 'o', color='red', markersize=10)
 
     # label markers with their ID
     for i, label in enumerate(elevators[:, COL_ID]):
@@ -93,57 +95,17 @@ for floor in floors:
         ax.text(bots[i, COL_X], bots[i, COL_Y], 0, int(label))
 
     # extract unique paths on current floor
-    print("FLOOR", floor)
     for path_id in np.unique(paths[:, COL_ID]):
         path = paths[paths[:, COL_ID] == path_id];
         if len(path) == 1:
             continue
-        print("path")
-        print(path)
-        print(np.diff(path[:, COL_T]))
         ax.quiver(path[:-1, COL_X],
                   path[:-1, COL_Y],
                   path[:-1, COL_T],
                   np.diff(path[:, COL_X]),
                   np.diff(path[:, COL_Y]),
                   np.diff(path[:, COL_T]),
-                  arrow_length_ratio = 0.08,
                   color=colors[int(path_id) % len(colors)])
 
-
-
-
-
-'''
-data = np.genfromtxt(args.paths,
-                     delimiter=',',
-                     skip_header=1,
-                     usecols=(1, 2, 3, 5))
-
-# max + 1 because arange doesn't include the highest
-# TODO: change to set instead
-for i in np.arange(data[:, 0].max() + 1):
-    # this is to filter out entries except the robot
-    path = data[data[:, 0] == i]
-    ax.quiver(path[:-1, 1],
-              path[:-1, 2],
-              path[:-1, 3]-1,
-              np.diff(path[:, 1]),
-              np.diff(path[:, 2]),
-              np.diff(path[:, 3]),
-              arrow_length_ratio = 0.08,
-              color=colors[int(i) % len(colors)])
-
-x = [1, 5, 10]
-y = [1, 5, 10]
-
-ax.plot(x, y, 's')
-
-ax.zaxis.set_ticks([])
-#ax.set_zlim3d(0, 5)
-#ax.set_xlim3d(0, 100)
-#ax.set_ylim3d(-50, 5)
-'''
 plt.grid()
-
 plt.show()
