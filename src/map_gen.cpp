@@ -43,6 +43,7 @@ MapGen::MapGen(const Config& config) {
     for (auto& [col, row] : config.elevators) {
         auto ele = graph.findNode(Point{static_cast<float>(col), static_cast<float>(row), 0});
         assert(ele);
+        ele->custom_data = (void*) 1;
         elevators.emplace_back(ele);
     }
     // add edges to grid of nodes

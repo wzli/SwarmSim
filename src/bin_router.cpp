@@ -35,17 +35,28 @@ void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file) {
         if (info.path.size() < 2) {
             continue;
         }
-        float z = info.path.front().node->position.get<2>();
-        for (auto& visit : info.path) {
-            auto& bids = visit.node->auction.getBids();
-            for (;;) {
+        for (auto visit = info.path.begin(); visit != info.path.end(); ++visit) {
+            auto& bids = visit->node->auction.getBids();
+            // lambda to save a csv entry
+            auto save_entry = [&](int z_offset) {
                 fprintf(save_file, "%u, %d, %f, %f, %f, %ld\r\n", PATH, std::stoi(id),
-                        visit.node->position.get<0>(), visit.node->position.get<1>(), z,
-                        std::distance(bids.find(visit.price), bids.end()) - 1);
-                if (z == visit.node->position.get<2>()) {
-                    break;
+                        visit->node->position.get<0>(), visit->node->position.get<1>(),
+                        (visit + z_offset)->node->position.get<2>(),
+                        std::distance(bids.find(visit->price), bids.end()) - 1);
+            };
+            // if the node is an elevator
+            if (visit->node->custom_data) {
+                // save entry if there is a previous floor
+                if (visit > info.path.begin()) {
+                    save_entry(-1);
                 }
-                z = visit.node->position.get<2>();
+                // save entry if there is a next floor
+                if (visit < info.path.end()) {
+                    save_entry(1);
+                }
+            } else {
+                // otherwise save entry for current floor
+                save_entry(0);
             }
         }
     }
