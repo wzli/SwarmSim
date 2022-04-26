@@ -22,8 +22,7 @@ class BinRouter {
 
 public:
     struct Config {
-        PathSearch::Config path_search_config;
-        float duration;
+        float elevator_duration;
         float fallback_cost;
         float blocking_fallback_cost;
         size_t iterations;

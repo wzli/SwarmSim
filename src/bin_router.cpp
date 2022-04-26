@@ -7,16 +7,32 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
         const std::vector<Nodes>& dst_vec, FILE* save_file) {
     assert(src_vec.size() == dst_vec.size());
     _requests.clear();
+    // create path search config
+    PathSearch::Config path_search_config;
+    path_search_config.travel_time = [&config](const NodePtr& prev, const NodePtr& cur,
+                                             const NodePtr& next) {
+        // initialize to 2D manhattan distance
+        // prev only exists for adjacent queries
+        float t = prev ? 1.0f
+                       : std::abs(cur->position.get<0>() - next->position.get<0>()) +
+                                  std::abs(cur->position.get<1>() - next->position.get<1>());
+        // add elevator duration if exiting elevator or floor changed
+        if (cur->custom_data ||
+                !(next->custom_data || cur->position.get<2>() == next->position.get<2>())) {
+            t += config.elevator_duration;
+        }
+        return t;
+    };
+
     // create requests vector
     for (size_t i = 0; i < src_vec.size(); ++i) {
         auto& src = src_vec[i];
         auto& dst = dst_vec[i];
-        auto path_search_config = config.path_search_config;
         float fallback_cost = dst.size() == 1 && dst.front() == src ? config.blocking_fallback_cost
                                                                     : config.fallback_cost;
         path_search_config.agent_id = std::to_string(i);
-        MultiPathPlanner::Request request{dst, config.duration, std::move(path_search_config),
-                {{src}, config.iterations, fallback_cost}};
+        MultiPathPlanner::Request request{
+                dst, FLT_MAX, path_search_config, {{src}, config.iterations, fallback_cost}};
         _requests.emplace_back(std::move(request));
     }
     // plan routes

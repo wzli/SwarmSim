@@ -28,8 +28,7 @@ bool save_map(const MapGen& map_gen, const char* file) {
 
     BinRouter router;
     BinRouter::Config config{
-            PathSearch::Config{""},
-            FLT_MAX,
+            10,
             FLT_MAX,
             10,
             100000,
