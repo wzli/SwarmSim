@@ -38,12 +38,12 @@ public:
         PathPlanner::PlanArgs args;
     };
 
-    struct PlanResult {
-        const Request* request;
+    struct Result {
         PathSearch::Error search_error = PathSearch::SUCCESS;
         PathSync::Error sync_error = PathSync::SUCCESS;
     };
-    PlanResult plan(const std::vector<Request>& requests, int rounds, bool allow_block = true);
+    using Results = std::vector<Result>;
+    Results plan(const std::vector<Request>& requests, int rounds, bool allow_block = true);
 
     const PathSync& getPathSync() const { return _path_sync; }
     PathSync& getPathSync() { return _path_sync; }

@@ -20,16 +20,26 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
         _requests.emplace_back(std::move(request));
     }
     // plan routes
-    auto result = _multi_path_planner.plan(_requests, config.rounds, config.allow_block);
-    if (result.search_error || result.sync_error) {
-        printf("!!!!!!!!!ERROR path %d sync %d\r\n", result.search_error, result.sync_error);
-        return FAILURE;
-    }
+    auto results = _multi_path_planner.plan(_requests, config.rounds, config.allow_block);
+    auto& path_sync = _multi_path_planner.getPathSync();
     if (save_file) {
-        savePaths(_multi_path_planner.getPathSync(), save_file);
+        savePaths(path_sync, save_file);
     }
     std::vector<int> order;
-    generateTraversalOrder(order, _multi_path_planner.getPathSync());
+    generateTraversalOrder(order, path_sync);
+
+    for (size_t i = 0; i < results.size(); ++i) {
+        // skip bins that don't move
+        size_t len = path_sync.getPaths().at(std::to_string(i)).path.size();
+        if ((dst_vec[i].empty() || dst_vec[i].front() == src_vec[i]) && len < 2) {
+            continue;
+        }
+        printf("id %ld search %d sync %d length %ld\n", i, results[i].search_error,
+                results[i].sync_error, len);
+        if (results[i].search_error > PathSearch::FALLBACK_DIVERTED || results[i].sync_error) {
+            return FAILURE;
+        }
+    }
     return SUCCESS;
 }
 

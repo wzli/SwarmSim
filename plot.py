@@ -91,7 +91,6 @@ for floor in floors:
     ax.zaxis.set_ticks(t_ticks)
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
-    ax.set_zlabel("Order")
 
     # plot markers for elevators robots and bins
     ax.plot(

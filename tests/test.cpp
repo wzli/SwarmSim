@@ -32,8 +32,8 @@ bool save_map(const MapGen& map_gen, const char* file) {
             FLT_MAX,
             FLT_MAX,
             10,
-            50000,
-            500,
+            100000,
+            200,
             false,
     };
     std::vector<Nodes> dst_vec;

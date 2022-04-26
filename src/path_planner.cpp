@@ -32,59 +32,67 @@ PathSearch::Error PathPlanner::replan(const PlanArgs& args) {
     return err;
 }
 
-MultiPathPlanner::PlanResult MultiPathPlanner::plan(
+MultiPathPlanner::Results MultiPathPlanner::plan(
         const std::vector<Request>& requests, int rounds, bool allow_block) {
     _path_sync.clearPaths();
     _path_planners.clear();
+    Results results;
+    results.reserve(requests.size());
     // initialize path planners and set destination
     for (auto& req : requests) {
         _path_planners.emplace_back(req.config);
-        PlanResult result{
-                &req, _path_planners.back().getPathSearch().setDestinations(req.dst, req.duration)};
-        if (result.search_error) {
-            return result;
+        results.emplace_back(Result{
+                _path_planners.back().getPathSearch().setDestinations(req.dst, req.duration)});
+        if (results.back().search_error) {
+            return results;
         }
     }
     std::vector<PathSearch::Error> search_errors(requests.size());
     size_t path_id = 0;
     while (--rounds > 0) {
-        PlanResult result{&requests.front()};
-        size_t path_idx = 0;
+        auto request = &requests.front();
+        auto result = &results.front();
         for (auto& planner : _path_planners) {
+            *result = {};
             // replan path
-            result.search_error = search_errors[path_idx] = planner.replan(result.request->args);
-            if (result.search_error > PathSearch::ITERATIONS_REACHED) {
-                return result;
+            result->search_error = planner.replan(request->args);
+            if (result->search_error > PathSearch::ITERATIONS_REACHED) {
+                return results;
             }
             // add path to path_sync
-            result.sync_error =
+            result->sync_error =
                     _path_sync.updatePath(planner.getId(), planner.getPath(), path_id++);
-            if (result.sync_error) {
-                return result;
+            if (result->sync_error) {
+                return results;
             }
             // terminate when all paths satisfactory
             if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
                     // check if there are any stale fallback paths
                     int path_idx = &p - &_path_planners[0];
-                    if (p.getPath().size() > 1 &&
-                            search_errors[path_idx] == PathSearch::FALLBACK_DIVERTED &&
-                            std::next(p.getPath().front().node->auction.getBids().begin())
-                                            ->second.bidder == p.getId()) {
+                    if (results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
+                            std::any_of(p.getPath().begin(), p.getPath().end() - 1,
+                                    [&p](const Visit& visit) {
+                                        return visit.node->state < Node::NO_PARKING &&
+                                               std::next(visit.node->auction.getBids().begin())
+                                                               ->second.bidder == p.getId();
+                                    })) {
                         p.getPathSearch().resetCostEstimates();
                         return false;
                     }
-                    auto status = _path_sync.checkWaitStatus(p.getId());
-                    return status.error == PathSync::SUCCESS ||
-                           (status.error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
+                    // check paths are compatible with each other
+                    auto& error = results[path_idx].sync_error;
+                    error = _path_sync.checkWaitStatus(p.getId()).error;
+                    return error == PathSync::SUCCESS ||
+                           (error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
                 })) {
                 rounds = 0;
                 break;
             }
-            ++result.request;
-            ++path_idx;
+            ++request;
+            ++result;
         }
     }
-    return PlanResult{nullptr, rounds ? PathSearch::SUCCESS : PathSearch::ITERATIONS_REACHED};
+    return results;
 }
 
 }  // namespace decentralized_path_auction
