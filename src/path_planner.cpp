@@ -45,12 +45,14 @@ MultiPathPlanner::PlanResult MultiPathPlanner::plan(
             return result;
         }
     }
+    std::vector<PathSearch::Error> search_errors(requests.size());
     size_t path_id = 0;
     while (--rounds > 0) {
         PlanResult result{&requests.front()};
+        size_t path_idx = 0;
         for (auto& planner : _path_planners) {
             // replan path
-            result.search_error = planner.replan(result.request->args);
+            result.search_error = search_errors[path_idx] = planner.replan(result.request->args);
             if (result.search_error > PathSearch::ITERATIONS_REACHED) {
                 return result;
             }
@@ -62,6 +64,15 @@ MultiPathPlanner::PlanResult MultiPathPlanner::plan(
             }
             // terminate when all paths satisfactory
             if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
+                    // check if there are any stale fallback paths
+                    int path_idx = &p - &_path_planners[0];
+                    if (p.getPath().size() > 1 &&
+                            search_errors[path_idx] == PathSearch::FALLBACK_DIVERTED &&
+                            std::next(p.getPath().front().node->auction.getBids().begin())
+                                            ->second.bidder == p.getId()) {
+                        p.getPathSearch().resetCostEstimates();
+                        return false;
+                    }
                     auto status = _path_sync.checkWaitStatus(p.getId());
                     return status.error == PathSync::SUCCESS ||
                            (status.error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
@@ -70,78 +81,10 @@ MultiPathPlanner::PlanResult MultiPathPlanner::plan(
                 break;
             }
             ++result.request;
+            ++path_idx;
         }
     }
     return PlanResult{nullptr, rounds ? PathSearch::SUCCESS : PathSearch::ITERATIONS_REACHED};
 }
 
 }  // namespace decentralized_path_auction
-
-#if 0
-struct Agent {
-    PathSearch path_search;
-    Path path;
-    Nodes src_candidates;
-    float fallback_cost;
-    size_t path_id = 0;
-
-    Agent(PathSearch::Config config, Nodes src, Nodes dst, float fb_cost = FLT_MAX, float dst_dur = FLT_MAX)
-            : path_search(std::move(config))
-            , path{{path_search.selectSource(src)}}
-            , src_candidates(std::move(src))
-            , fallback_cost(fb_cost) {
-        path_search.reset(std::move(dst), dst_dur);
-    }
-
-    const std::string& id() { return path_search.editConfig().agent_id; }
-};
-
-void multi_iterate(std::vector<Agent>& agents, int rounds, size_t iterations, bool allow_block, bool print = false) {
-    PathSync path_sync;
-    while (--rounds > 0) {
-        for (auto& agent : agents) {
-            auto search_error = agent.path_search.iterate(agent.path, iterations, agent.fallback_cost);
-            ASSERT_LE(search_error, PathSearch::ITERATIONS_REACHED);
-            if (print) {
-                printf("%s error %d\r\n", agent.id().c_str(), search_error);
-                print_path(agent.path);
-            }
-            auto update_error = path_sync.updatePath(agent.id(), agent.path, agent.path_id++);
-            ASSERT_EQ(update_error, PathSync::SUCCESS);
-            if (std::all_of(agents.begin(), agents.end(), [&](Agent& a) {
-                    auto error = std::get<0>(path_sync.checkWaitConditions(a.id()));
-                    if (error == PathSync::SOURCE_NODE_OUTBID) {
-                        a.path = {a.path_search.selectSource(a.src_candidates)};
-                    }
-                    return error == PathSync::SUCCESS ||
-                           (error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
-                })) {
-                rounds = 0;
-                break;
-            }
-        }
-    }
-    if (print) {
-        save_paths(path_sync, "paths.csv");
-    }
-    ASSERT_EQ(rounds, -1);
-}
-
-bool save_paths(const PathSync& path_sync, const char* file) {
-    auto fp = fopen(file, "w");
-    if (!fp) {
-        return false;
-    }
-    fprintf(fp, "agent_id, agent_idx, pos_x, pos_y, price, rank\r\n");
-    int i = 0;
-    for (auto& info : path_sync.getPaths()) {
-        for (auto& visit : info.second.path) {
-            auto& bids = visit.node->auction.getBids();
-            fprintf(fp, "\"%s\", %d, %f, %f, %f, %lu\r\n", info.first.c_str(), i, visit.node->position.get<0>(),
-                    visit.node->position.get<1>(), visit.price, std::distance(bids.find(visit.price), bids.end()) - 1);
-        }
-        ++i;
-    }
-    return !fclose(fp);
-}
-#endif
