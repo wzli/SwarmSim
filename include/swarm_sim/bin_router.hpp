@@ -27,7 +27,7 @@ public:
         float blocking_fallback_cost;
         size_t iterations;
         size_t rounds;
-        bool allow_block;
+        bool allow_indefinite_block;
     };
 
     Error generateBinPaths(const Config& config, const Nodes& src_vec,

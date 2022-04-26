@@ -36,7 +36,8 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
         _requests.emplace_back(std::move(request));
     }
     // plan routes
-    auto results = _multi_path_planner.plan(_requests, config.rounds, config.allow_block);
+    auto results =
+            _multi_path_planner.plan(_requests, config.rounds, config.allow_indefinite_block);
     auto& path_sync = _multi_path_planner.getPathSync();
     if (save_file) {
         savePaths(path_sync, save_file);

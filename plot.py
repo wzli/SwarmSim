@@ -103,9 +103,9 @@ for floor in floors:
     for i, label in enumerate(elevators[:, COL_ID]):
         ax.text(elevators[i, COL_X], elevators[i, COL_Y], 0, int(label))
     for i, label in enumerate(bins[:, COL_ID]):
-        ax.text(bins[i, COL_X], bins[i, COL_Y], 0, int(label))
+        ax.text(bins[i, COL_X], bins[i, COL_Y], 0, int(label), ha="center", va="center")
     for i, label in enumerate(bots[:, COL_ID]):
-        ax.text(bots[i, COL_X], bots[i, COL_Y], 0, int(label))
+        ax.text(bots[i, COL_X], bots[i, COL_Y], 0, int(label), ha="center", va="center")
 
     # extract unique paths on current floor
     for path_id in np.unique(paths[:, COL_ID]):
