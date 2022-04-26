@@ -28,6 +28,8 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
     if (save_file) {
         savePaths(_multi_path_planner.getPathSync(), save_file);
     }
+    std::vector<int> order;
+    generateTraversalOrder(order, _multi_path_planner.getPathSync());
     return SUCCESS;
 }
 
@@ -62,6 +64,65 @@ void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file) {
             }
         }
     }
+}
+
+void BinRouter::generateTraversalOrder(
+        std::vector<int>& traversal_order, const PathSync& path_sync) {
+    // initialize visit_count lookup table
+    auto& paths = path_sync.getPaths();
+    std::vector<uint8_t> visit_count(paths.size());
+
+    // initialize traversal stack in order of IDs
+    std::vector<int> stack;
+    stack.reserve(paths.size() * 2);
+    for (int i = paths.size() - 1; i >= 0; --i) {
+        stack.push_back(i);
+    }
+
+    // clear output buffer
+    traversal_order.clear();
+    traversal_order.reserve(paths.size());
+
+    // traverse path dependencies
+    while (!stack.empty()) {
+        // get path from ID at back of stack
+        int id = stack.back();
+        auto& path = paths.at(std::to_string(id)).path;
+        // remove if already visited
+        if (visit_count[id] > 0) {
+            stack.pop_back();
+        } else if (path_sync.checkWaitStatus(std::to_string(id)).blocked_progress < path.size()) {
+            // add dependencies on first visit
+            printf("%d: ", id);
+            for (auto visit = path.rbegin(); visit != path.rend(); ++visit) {
+                auto& bids = visit->node->auction.getBids();
+                auto higher_bid = visit->node->auction.getHigherBid(visit->price);
+                if (higher_bid != bids.end()) {
+                    int dep_id = std::stoi(higher_bid->second.bidder);
+                    if (visit_count[dep_id] == 0) {
+                        stack.push_back(dep_id);
+                    }
+                    printf("%d ", dep_id);
+                }
+            }
+            puts("");
+        }
+        // if a path is revisited, it means all dependencies are met
+        // log in traversal order but filter out trivial paths
+        if (visit_count[id] == 1 && path.size() > 1) {
+            traversal_order.push_back(id);
+            printf("done %d\n", id);
+        }
+        // increment visit count
+        if (visit_count[id] < 255) {
+            ++visit_count[id];
+        }
+    }
+
+    for (int id : traversal_order) {
+        printf("traverse %d\n", id);
+    }
+    puts("");
 }
 
 }  // namespace swarm_sim

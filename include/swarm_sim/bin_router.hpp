@@ -35,6 +35,8 @@ public:
             const std::vector<Nodes>& dst_vec, FILE* save_file = nullptr);
 
 private:
+    void generateTraversalOrder(std::vector<int>& traversal_order, const PathSync& path_sync);
+
     void savePaths(const PathSync& path_sync, FILE* save_file);
 
     MultiPathPlanner _multi_path_planner;
