@@ -26,8 +26,7 @@ public:
         float fallback_cost;
         float blocking_fallback_cost;
         size_t iterations;
-        size_t rounds;
-        bool allow_indefinite_block;
+        MultiPathPlanner::Config planner_config;
     };
 
     Error generateBinPaths(const Config& config, const Nodes& src_vec,

@@ -33,7 +33,7 @@ PathSearch::Error PathPlanner::replan(const PlanArgs& args) {
 }
 
 MultiPathPlanner::Results MultiPathPlanner::plan(
-        const std::vector<Request>& requests, int rounds, bool allow_block) {
+        const Config& config, const std::vector<Request>& requests) {
     _path_sync.clearPaths();
     _path_planners.clear();
     Results results;
@@ -49,7 +49,7 @@ MultiPathPlanner::Results MultiPathPlanner::plan(
     }
     std::vector<PathSearch::Error> search_errors(requests.size());
     size_t path_id = 0;
-    while (--rounds > 0) {
+    for (size_t round = config.rounds; round > 0; --round) {
         auto request = &requests.front();
         auto result = &results.front();
         for (auto& planner : _path_planners) {
@@ -83,9 +83,10 @@ MultiPathPlanner::Results MultiPathPlanner::plan(
                     auto& error = results[path_idx].sync_error;
                     error = _path_sync.checkWaitStatus(p.getId()).error;
                     return error == PathSync::SUCCESS ||
-                           (error == PathSync::REMAINING_DURATION_INFINITE && allow_block);
+                           (error == PathSync::REMAINING_DURATION_INFINITE &&
+                                   config.allow_indefinite_block);
                 })) {
-                rounds = 0;
+                round = 1;
                 break;
             }
             ++request;

@@ -1,6 +1,7 @@
 #pragma once
 #include <decentralized_path_auction/path_search.hpp>
 #include <decentralized_path_auction/path_sync.hpp>
+#include <thread>
 
 namespace decentralized_path_auction {
 
@@ -31,6 +32,12 @@ private:
 
 class MultiPathPlanner {
 public:
+    struct Config {
+        size_t rounds;
+        size_t n_threads = std::thread::hardware_concurrency();
+        bool allow_indefinite_block = true;
+    };
+
     struct Request {
         Nodes dst;
         float duration;
@@ -42,15 +49,22 @@ public:
         PathSearch::Error search_error = PathSearch::SUCCESS;
         PathSync::Error sync_error = PathSync::SUCCESS;
     };
+
     using Results = std::vector<Result>;
-    Results plan(const std::vector<Request>& requests, int rounds, bool allow_block = true);
+
+    Results plan(const Config& config, const std::vector<Request>& requests);
 
     const PathSync& getPathSync() const { return _path_sync; }
     PathSync& getPathSync() { return _path_sync; }
 
 private:
+    void thread_loop(std::vector<size_t> path_ids);
+
     PathSync _path_sync;
     std::vector<PathPlanner> _path_planners;
+
+    Result* _results;
+    const Request* _requests;
 };
 
 }  // namespace decentralized_path_auction
