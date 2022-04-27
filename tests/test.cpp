@@ -4,60 +4,33 @@
 
 using namespace swarm_sim;
 
-bool save_map(const MapGen& map_gen, const char* file) {
-    auto fp = fopen(file, "w");
-    if (!fp) {
-        return false;
-    }
-    fprintf(fp, "type, id, x, y, z, t\r\n");
-    int id = 0;
-    for (auto& ele : map_gen.elevators) {
-        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", 0, id++, ele->position.get<0>(),
-                ele->position.get<1>(), ele->position.get<2>(), 0);
-    }
-    id = 0;
-    for (auto& bin : map_gen.bins) {
-        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", 1, id++, bin->position.get<0>(),
-                bin->position.get<1>(), bin->position.get<2>(), 0);
-    }
-    id = 0;
-    for (auto& bot : map_gen.bots) {
-        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", 2, id++, bot->position.get<0>(),
-                bot->position.get<1>(), bot->position.get<2>(), 0);
-    }
-
-    BinRouter router;
-    BinRouter::Config config{
-            10,
-            FLT_MAX,
-            10,
-            100000,
-            {200, 8, false},
-    };
-    std::vector<Nodes> dst_vec;
-    dst_vec.reserve(map_gen.bins.size());
-    for (auto& src : map_gen.bins) {
-        dst_vec.emplace_back(Nodes{src});
-    }
-
-    auto dst_node = map_gen.graph.findNode({1, 1, 1});
-    for (int i = 0; i < 3; ++i) {
-        dst_vec[i] = {map_gen.graph.findNode({i + 1, i + 1, i})};
-        assert(dst_vec[i][0]);
-    }
-    assert(!router.generateBinPaths(config, map_gen.bins, dst_vec, fp));
-    return !fclose(fp);
-}
-
 TEST(map_gen, generate) {
-    MapGen map_gen(MapGen::Config{10,  // rows
-            10,                        // cols
-            3,                         // floors
-            200,                       // n_bins
-            10,                        // n_bots,
-            // elevators
-            {{0, 0}, {0, 9}, {9, 0}, {9, 9}}});
-    save_map(map_gen, "map.csv");
+    BinRouter::Config config;
+    config.elevator_duration = 10.0f;
+    // path planner config
+    config.fallback_cost = FLT_MAX;
+    config.blocking_fallback_cost = 10.0f;
+    config.iterations = 100000;
+    // multi path planner config
+    config.planner_config.rounds = 200;
+    config.planner_config.n_threads = 8;
+    config.planner_config.allow_indefinite_block = false;
+    // map gen config
+    config.map_gen_config.rows = 10;
+    config.map_gen_config.cols = 10;
+    config.map_gen_config.floors = 3;
+    config.map_gen_config.n_bins = 200;
+    config.map_gen_config.n_bots = 10;
+    config.map_gen_config.elevators = {{0, 0}, {0, 9}, {9, 0}, {9, 9}};
+    // generate solution
+    BinRouter bin_router(std::move(config));
+    ASSERT_EQ(BinRouter::SUCCESS, bin_router.solve(
+                                          {
+                                                  {0, 4, 0, 1},
+                                                  {1, 5, 0, 1},
+                                                  {2, 6, 0, 1},
+                                          },
+                                          "bin_routes.csv"));
 }
 
 int main(int argc, char* argv[]) {

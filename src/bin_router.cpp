@@ -3,40 +3,88 @@
 
 namespace swarm_sim {
 
-BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& src_vec,
-        const std::vector<Nodes>& dst_vec, FILE* save_file) {
+BinRouter::BinRouter(Config config)
+        : _config(std::move(config))
+        , _map(_config.map_gen_config) {}
+
+BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const char* save_file) {
+    // create and initialize bin destination vector
+    std::vector<Nodes> dst_vec;
+    dst_vec.reserve(_map.bins.size());
+    for (auto& src : _map.bins) {
+        dst_vec.emplace_back(Nodes{src});
+    }
+
+    // add bin requests to destination vector
+    for (auto& req : requests) {
+        if (req.bin_id >= _map.bins.size()) {
+            return REQUEST_BIN_ID_OUT_OF_RANGE;
+        }
+        auto dst_node = _map.graph.findNode({static_cast<float>(req.col),
+                static_cast<float>(req.row), static_cast<float>(req.floor)});
+        if (!dst_node) {
+            return REQUEST_BIN_NODE_NOT_FOUND;
+        }
+        if (dst_node->state >= Node::NO_PARKING) {
+            return REQUEST_BIN_NODE_NOT_PARKABLE;
+        }
+        dst_vec[req.bin_id] = {dst_node};
+    }
+
+    // open save file
+    auto fp = fopen(save_file, "w");
+    if (!fp) {
+        return FILE_OPEN_FAIL;
+    }
+
+    // write static marker entries to data file
+    fprintf(fp, "type, id, x, y, z, t\r\n");
+    int id = 0;
+    for (auto& ele : _map.elevators) {
+        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", ELEVATOR, id++, ele->position.get<0>(),
+                ele->position.get<1>(), ele->position.get<2>(), 0);
+    }
+    id = 0;
+    for (auto& bin : _map.bins) {
+        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", BIN, id++, bin->position.get<0>(),
+                bin->position.get<1>(), bin->position.get<2>(), 0);
+    }
+    id = 0;
+    for (auto& bot : _map.bots) {
+        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", ROBOT, id++, bot->position.get<0>(),
+                bot->position.get<1>(), bot->position.get<2>(), 0);
+    }
+
+    Error error = generateBinPaths(dst_vec, fp);
+
+    fclose(fp);
+    return error;
+}
+
+BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec, FILE* save_file) {
+    auto& src_vec = _map.bins;
     assert(src_vec.size() == dst_vec.size());
     _requests.clear();
     // create path search config
     PathSearch::Config path_search_config;
-    path_search_config.travel_time = [&config](const NodePtr& prev, const NodePtr& cur,
+    path_search_config.travel_time = [this](const NodePtr& prev, const NodePtr& cur,
                                              const NodePtr& next) {
-        // initialize to 2D manhattan distance
-        // prev only exists for adjacent queries
-        float t = prev ? 1.0f
-                       : std::abs(cur->position.get<0>() - next->position.get<0>()) +
-                                  std::abs(cur->position.get<1>() - next->position.get<1>());
-        // add elevator duration if exiting elevator or floor changed
-        if (cur->custom_data ||
-                !(next->custom_data || cur->position.get<2>() == next->position.get<2>())) {
-            t += config.elevator_duration;
-        }
-        return t;
+        return customTravelTime(prev, cur, next);
     };
 
     // create requests vector
     for (size_t i = 0; i < src_vec.size(); ++i) {
         auto& src = src_vec[i];
         auto& dst = dst_vec[i];
-        float fallback_cost = dst.size() == 1 && dst.front() == src ? config.blocking_fallback_cost
-                                                                    : config.fallback_cost;
+        float fallback_cost = dst.size() == 1 && dst.front() == src ? _config.blocking_fallback_cost
+                                                                    : _config.fallback_cost;
         path_search_config.agent_id = std::to_string(i);
         MultiPathPlanner::Request request{
-                dst, FLT_MAX, path_search_config, {{src}, config.iterations, fallback_cost}};
+                dst, FLT_MAX, path_search_config, {{src}, _config.iterations, fallback_cost}};
         _requests.emplace_back(std::move(request));
     }
     // plan routes
-    _multi_path_planner.plan(config.planner_config, _requests);
+    _multi_path_planner.plan(_config.planner_config, _requests);
     auto& path_sync = _multi_path_planner.getPathSync();
     if (save_file) {
         savePaths(path_sync, save_file);
@@ -54,7 +102,7 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
         printf("id %ld search %d sync %d length %ld\n", i, results[i].search_error,
                 results[i].sync_error, len);
         if (results[i].search_error > PathSearch::FALLBACK_DIVERTED || results[i].sync_error) {
-            return FAILURE;
+            return GENERATE_BIN_PATHS_FAIL;
         }
     }
     return SUCCESS;
@@ -150,6 +198,20 @@ void BinRouter::generateTraversalOrder(
         printf("traverse %d\n", id);
     }
     puts("");
+}
+
+float BinRouter::customTravelTime(const NodePtr& prev, const NodePtr& cur, const NodePtr& next) {
+    // initialize to 2D manhattan distance
+    // prev only exists for adjacent queries
+    float t = prev ? 1.0f
+                   : std::abs(cur->position.get<0>() - next->position.get<0>()) +
+                              std::abs(cur->position.get<1>() - next->position.get<1>());
+    // add elevator duration if exiting elevator or floor changed
+    if (cur->custom_data ||
+            !(next->custom_data || cur->position.get<2>() == next->position.get<2>())) {
+        t += _config.elevator_duration;
+    }
+    return t;
 }
 
 }  // namespace swarm_sim
