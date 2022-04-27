@@ -32,7 +32,7 @@ bool save_map(const MapGen& map_gen, const char* file) {
             FLT_MAX,
             10,
             100000,
-            {200, 1, false},
+            {200, 8, false},
     };
     std::vector<Nodes> dst_vec;
     dst_vec.reserve(map_gen.bins.size());
@@ -53,7 +53,7 @@ TEST(map_gen, generate) {
     MapGen map_gen(MapGen::Config{10,  // rows
             10,                        // cols
             3,                         // floors
-            100,                       // n_bins
+            200,                       // n_bins
             10,                        // n_bots,
             // elevators
             {{0, 0}, {0, 9}, {9, 0}, {9, 9}}});

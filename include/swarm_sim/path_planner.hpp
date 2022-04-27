@@ -2,6 +2,7 @@
 #include <decentralized_path_auction/path_search.hpp>
 #include <decentralized_path_auction/path_sync.hpp>
 #include <thread>
+#include <shared_mutex>
 
 namespace decentralized_path_auction {
 
@@ -50,21 +51,24 @@ public:
         PathSync::Error sync_error = PathSync::SUCCESS;
     };
 
-    using Results = std::vector<Result>;
-
-    Results plan(const Config& config, const std::vector<Request>& requests);
+    PathSearch::Error plan(const Config& config, const std::vector<Request>& requests);
 
     const PathSync& getPathSync() const { return _path_sync; }
     PathSync& getPathSync() { return _path_sync; }
 
+    const std::vector<Result>& getResults() const { return _results; }
+
 private:
-    void thread_loop(std::vector<size_t> path_ids);
+    void thread_loop(size_t idx);
 
     PathSync _path_sync;
     std::vector<PathPlanner> _path_planners;
-
-    Result* _results;
+    std::vector<Result> _results;
     const Request* _requests;
+    Config _config;
+
+    std::atomic<int> _countdown;
+    std::shared_mutex _shared_mutex;
 };
 
 }  // namespace decentralized_path_auction

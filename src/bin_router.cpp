@@ -36,7 +36,7 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
         _requests.emplace_back(std::move(request));
     }
     // plan routes
-    auto results = _multi_path_planner.plan(config.planner_config, _requests);
+    _multi_path_planner.plan(config.planner_config, _requests);
     auto& path_sync = _multi_path_planner.getPathSync();
     if (save_file) {
         savePaths(path_sync, save_file);
@@ -44,6 +44,7 @@ BinRouter::Error BinRouter::generateBinPaths(const Config& config, const Nodes& 
     std::vector<int> order;
     generateTraversalOrder(order, path_sync);
 
+    auto& results = _multi_path_planner.getResults();
     for (size_t i = 0; i < results.size(); ++i) {
         // skip bins that don't move
         size_t len = path_sync.getPaths().at(std::to_string(i)).path.size();

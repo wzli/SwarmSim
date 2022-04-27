@@ -32,68 +32,100 @@ PathSearch::Error PathPlanner::replan(const PlanArgs& args) {
     return err;
 }
 
-MultiPathPlanner::Results MultiPathPlanner::plan(
+PathSearch::Error MultiPathPlanner::plan(
         const Config& config, const std::vector<Request>& requests) {
     _path_sync.clearPaths();
     _path_planners.clear();
-    Results results;
-    results.reserve(requests.size());
+    _results.clear();
     // initialize path planners and set destination
     for (auto& req : requests) {
         _path_planners.emplace_back(req.config);
-        results.emplace_back(Result{
+        _results.emplace_back(Result{
                 _path_planners.back().getPathSearch().setDestinations(req.dst, req.duration)});
-        if (results.back().search_error) {
-            return results;
+        if (_results.back().search_error) {
+            return _results.back().search_error;
         }
     }
-    std::vector<PathSearch::Error> search_errors(requests.size());
+
+    // setup thread shared data
+    _countdown = static_cast<int>(config.rounds * requests.size());
+    _requests = &requests[0];
+    _config = config;
+    // cannot have more threads than there are paths
+    _config.n_threads = std::min(config.n_threads, requests.size());
+
+    // spawn threads
+    std::vector<std::thread> threads;
+    for (size_t thread_idx = 0; thread_idx < _config.n_threads; ++thread_idx) {
+        threads.emplace_back(&MultiPathPlanner::thread_loop, this, thread_idx);
+    }
+
+    // wait for threads completion
+    for (auto& thread : threads) {
+        thread.join();
+    }
+    return static_cast<PathSearch::Error>(-_countdown);
+}
+
+void MultiPathPlanner::thread_loop(size_t idx) {
     size_t path_id = 0;
-    for (size_t round = config.rounds; round > 0; --round) {
-        auto request = &requests.front();
-        auto result = &results.front();
-        for (auto& planner : _path_planners) {
-            *result = {};
-            // replan path
-            result->search_error = planner.replan(request->args);
-            if (result->search_error > PathSearch::ITERATIONS_REACHED) {
-                return results;
+    while (_countdown > 0) {
+        --_countdown;
+        auto& request = _requests[idx];
+        auto& planner = _path_planners[idx];
+        auto& result = _results[idx];
+        PathSearch::Error search_error;
+        // replan path only requires read access
+        {
+            std::shared_lock lock(_shared_mutex);
+            search_error = planner.replan(request.args);
+        }
+        // enter write lock
+        {
+            std::unique_lock lock(_shared_mutex);
+            result = {search_error};
+            // terminate search if error occurered
+            if (search_error > PathSearch::ITERATIONS_REACHED) {
+                _countdown = -search_error;
+                return;
             }
-            // add path to path_sync
-            result->sync_error =
+            // otherwise add to path sync
+            result.sync_error =
                     _path_sync.updatePath(planner.getId(), planner.getPath(), path_id++);
-            if (result->sync_error) {
-                return results;
-            }
-            // terminate when all paths satisfactory
-            if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
-                    // check if there are any stale fallback paths
-                    int path_idx = &p - &_path_planners[0];
-                    if (results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
-                            std::any_of(p.getPath().begin(), p.getPath().end() - 1,
-                                    [&p](const Visit& visit) {
-                                        return visit.node->state < Node::NO_PARKING &&
-                                               std::next(visit.node->auction.getBids().begin())
-                                                               ->second.bidder == p.getId();
-                                    })) {
-                        p.getPathSearch().resetCostEstimates();
-                        return false;
-                    }
-                    // check paths are compatible with each other
-                    auto& error = results[path_idx].sync_error;
-                    error = _path_sync.checkWaitStatus(p.getId()).error;
-                    return error == PathSync::SUCCESS ||
-                           (error == PathSync::REMAINING_DURATION_INFINITE &&
-                                   config.allow_indefinite_block);
-                })) {
-                round = 1;
-                break;
-            }
-            ++request;
-            ++result;
+        }
+
+        // terminate when all paths are satisfactory
+        if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
+                std::unique_lock lock(_shared_mutex);
+                // check if there are any stale fallback paths
+                int path_idx = &p - &_path_planners[0];
+                if (_results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
+                        std::any_of(p.getPath().begin(), p.getPath().end() - 1,
+                                [&p](const Visit& visit) {
+                                    return visit.node->state < Node::NO_PARKING &&
+                                           std::next(visit.node->auction.getBids().begin())
+                                                           ->second.bidder == p.getId();
+                                })) {
+                    p.getPathSearch().resetCostEstimates();
+                    return false;
+                }
+                // check paths are compatible with each other
+                auto& error = _results[path_idx].sync_error;
+                error = _path_sync.checkWaitStatus(p.getId()).error;
+                return error == PathSync::SUCCESS ||
+                       (error == PathSync::REMAINING_DURATION_INFINITE &&
+                               _config.allow_indefinite_block);
+            })) {
+            _countdown = 0;
+            return;
+        }
+
+        // select next path to plan
+        idx += _config.n_threads;
+        if (idx >= _path_planners.size()) {
+            idx %= _config.n_threads;
         }
     }
-    return results;
 }
 
 }  // namespace decentralized_path_auction
