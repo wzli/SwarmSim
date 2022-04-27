@@ -55,16 +55,48 @@ BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const
                 bot->position.get<1>(), bot->position.get<2>(), 0);
     }
 
-    Error error = generateBinPaths(dst_vec, fp);
+    // generate bin routes
+    if (Error error = generateBinPaths(dst_vec, fp)) {
+        fclose(fp);
+        return error;
+    }
+
+    // generate traversal order of bin routes
+    std::vector<int> order;
+    generateTraversalOrder(order, _bin_path_planner.getPathSync());
+
+    // generate bin paths by processing one chunk of the traversal at a time
+    for (auto cur = order.cbegin(); cur != order.cend();) {
+        if (Error error = generateRobotPaths(cur, order.cend(), fp)) {
+            fclose(fp);
+            return error;
+        }
+    }
 
     fclose(fp);
-    return error;
+    return SUCCESS;
+}
+
+BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator& order_cur,
+        const std::vector<int>::const_iterator order_end, FILE* save_file) {
+    // create new empty graph from config
+    MapGen::Config map_config = _config.map_gen_config;
+    map_config.n_bins = 0;
+    map_config.n_bots = 0;
+    MapGen robot_map(map_config);
+
+    for (const auto order_begin = order_cur;
+            order_cur != order_begin + _map.bots.size() && order_cur != order_end; ++order_cur) {
+        printf("%d, ", *order_cur);
+    }
+    puts("end chunk");
+    return SUCCESS;
 }
 
 BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec, FILE* save_file) {
     auto& src_vec = _map.bins;
     assert(src_vec.size() == dst_vec.size());
-    _requests.clear();
+    _path_requests.clear();
     // create path search config
     PathSearch::Config path_search_config;
     path_search_config.travel_time = [this](const NodePtr& prev, const NodePtr& cur,
@@ -81,18 +113,15 @@ BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec, 
         path_search_config.agent_id = std::to_string(i);
         MultiPathPlanner::Request request{
                 dst, FLT_MAX, path_search_config, {{src}, _config.iterations, fallback_cost}};
-        _requests.emplace_back(std::move(request));
+        _path_requests.emplace_back(std::move(request));
     }
     // plan routes
-    _multi_path_planner.plan(_config.planner_config, _requests);
-    auto& path_sync = _multi_path_planner.getPathSync();
+    _bin_path_planner.plan(_config.planner_config, _path_requests);
+    auto& path_sync = _bin_path_planner.getPathSync();
     if (save_file) {
         savePaths(path_sync, save_file);
     }
-    std::vector<int> order;
-    generateTraversalOrder(order, path_sync);
-
-    auto& results = _multi_path_planner.getResults();
+    auto& results = _bin_path_planner.getResults();
     for (size_t i = 0; i < results.size(); ++i) {
         // skip bins that don't move
         size_t len = path_sync.getPaths().at(std::to_string(i)).path.size();
@@ -195,7 +224,7 @@ void BinRouter::generateTraversalOrder(
     }
 
     for (int id : traversal_order) {
-        printf("traverse %d\n", id);
+        printf(">%d", id);
     }
     puts("");
 }

@@ -19,8 +19,8 @@ TEST(map_gen, generate) {
     config.map_gen_config.rows = 10;
     config.map_gen_config.cols = 10;
     config.map_gen_config.floors = 3;
-    config.map_gen_config.n_bins = 200;
-    config.map_gen_config.n_bots = 10;
+    config.map_gen_config.n_bins = 100;
+    config.map_gen_config.n_bots = 2;
     config.map_gen_config.elevators = {{0, 0}, {0, 9}, {9, 0}, {9, 9}};
     // generate solution
     BinRouter bin_router(std::move(config));

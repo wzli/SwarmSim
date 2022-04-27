@@ -47,17 +47,22 @@ public:
 
     Error solve(const std::vector<BinRequest>& requests, const char* save_file);
 
+    MapGen& getMap() { return _map; }
+    const MapGen& getMap() const { return _map; }
+
 private:
     float customTravelTime(const NodePtr& prev, const NodePtr& cur, const NodePtr& next);
 
     Error generateBinPaths(const std::vector<Nodes>& dst_vec, FILE* save_file = nullptr);
-
+    Error generateRobotPaths(std::vector<int>::const_iterator& order_cur,
+            const std::vector<int>::const_iterator order_end, FILE* save_file = nullptr);
     void generateTraversalOrder(std::vector<int>& traversal_order, const PathSync& path_sync);
 
     void savePaths(const PathSync& path_sync, FILE* save_file);
 
-    MultiPathPlanner _multi_path_planner;
-    std::vector<MultiPathPlanner::Request> _requests;
+    MultiPathPlanner _bin_path_planner;
+    MultiPathPlanner _robot_path_planner;
+    std::vector<MultiPathPlanner::Request> _path_requests;
 
     Config _config;
     MapGen _map;
