@@ -59,7 +59,8 @@ private:
     void generateTraversalOrder(std::vector<int>& traversal_order, const PathSync& path_sync);
 
     void saveEntities(FILE* save_file, int stage);
-    void savePaths(const PathSync& path_sync, FILE* save_file, int stage);
+    void savePath(int id, const Path& path, FILE* save_file, int stage, bool under);
+    void savePaths(const PathSync& path_sync, FILE* save_file, int stage, bool under);
 
     MultiPathPlanner _bin_path_planner;
     MultiPathPlanner _robot_path_planner;

@@ -38,16 +38,17 @@ BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const
     }
 
     // write static marker entries to data file
-    int stage = 0;
     fprintf(fp, "stage, type, id, x, y, z, t\r\n");
-    saveEntities(fp, stage);
 
     // generate bin routes
     if (Error error = generateBinPaths(dst_vec)) {
         fclose(fp);
         return error;
     }
-    savePaths(_bin_path_planner.getPathSync(), fp, stage++);
+
+    int stage = 0;
+    saveEntities(fp, stage);
+    savePaths(_bin_path_planner.getPathSync(), fp, stage++, false);
 
     // generate traversal order of bin routes
     std::vector<int> order;
@@ -55,12 +56,18 @@ BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const
 
     // generate bin paths by processing one chunk of the traversal at a time
     for (auto cur = order.cbegin(); cur != order.cend();) {
+        auto bin_idx = cur;
         saveEntities(fp, stage);
         if (Error error = generateRobotPaths(cur, order.cend())) {
             fclose(fp);
             return error;
         }
-        savePaths(_robot_path_planner.getPathSync(), fp, stage++);
+        for (; bin_idx != cur; ++bin_idx) {
+            auto& bin_path =
+                    _bin_path_planner.getPathSync().getPaths().at(std::to_string(*bin_idx)).path;
+            savePath(*bin_idx + _map.bots.size(), bin_path, fp, stage, false);
+        }
+        savePaths(_robot_path_planner.getPathSync(), fp, stage++, true);
     }
 
     fclose(fp);
@@ -108,7 +115,7 @@ BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator&
         // need to lower fallback costs and increase price increment when there are less
         // destinations than robots otherwise they keep competing until out of iterations
         if (dst_candidates.size() < _map.bots.size()) {
-            fallback_cost /= 10;
+            fallback_cost /= 5;
             path_search_config.price_increment *= 10;
         }
         MultiPathPlanner::Request request{dst_candidates, FLT_MAX, path_search_config,
@@ -204,36 +211,40 @@ void BinRouter::saveEntities(FILE* save_file, int stage) {
     }
 }
 
-void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file, int stage) {
+void BinRouter::savePath(int id, const Path& path, FILE* save_file, int stage, bool under) {
+    for (auto visit = path.begin(); visit != path.end(); ++visit) {
+        auto& bids = visit->node->auction.getBids();
+        // lambda to save a csv entry
+        auto save_entry = [&](int z_offset) {
+            float z = std::distance(bids.find(visit->price), bids.end()) - 1;
+            fprintf(save_file, "%d, %u, %d, %f, %f, %f, %f\r\n", stage, PATH, id,
+                    visit->node->position.get<0>(), visit->node->position.get<1>(),
+                    (visit + z_offset)->node->position.get<2>(), under ? -0.25f - z : 0.25f + z);
+        };
+        // if the node is an elevator
+        if (visit->node->custom_data) {
+            // save entry if there is a previous floor
+            if (visit > path.begin()) {
+                save_entry(-1);
+            }
+            // save entry if there is a next floor
+            if (visit < path.end()) {
+                save_entry(1);
+            }
+        } else {
+            // otherwise save entry for current floor
+            save_entry(0);
+        }
+    }
+}
+
+void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file, int stage, bool under) {
     assert(save_file);
     for (auto& [id, info] : path_sync.getPaths()) {
         if (info.path.size() < 2) {
             continue;
         }
-        for (auto visit = info.path.begin(); visit != info.path.end(); ++visit) {
-            auto& bids = visit->node->auction.getBids();
-            // lambda to save a csv entry
-            auto save_entry = [&](int z_offset) {
-                fprintf(save_file, "%d, %u, %d, %f, %f, %f, %ld\r\n", stage, PATH, std::stoi(id),
-                        visit->node->position.get<0>(), visit->node->position.get<1>(),
-                        (visit + z_offset)->node->position.get<2>(),
-                        std::distance(bids.find(visit->price), bids.end()) - 1);
-            };
-            // if the node is an elevator
-            if (visit->node->custom_data) {
-                // save entry if there is a previous floor
-                if (visit > info.path.begin()) {
-                    save_entry(-1);
-                }
-                // save entry if there is a next floor
-                if (visit < info.path.end()) {
-                    save_entry(1);
-                }
-            } else {
-                // otherwise save entry for current floor
-                save_entry(0);
-            }
-        }
+        savePath(std::stoi(id), info.path, save_file, stage, under);
     }
 }
 

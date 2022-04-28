@@ -133,8 +133,8 @@ void MultiPathPlanner::thread_loop(size_t idx) {
                            (error == PathSync::REMAINING_DURATION_INFINITE &&
                                    _config.allow_indefinite_block);
                 })) {
+                printf("graceful took %d\n", _countdown);
                 _countdown = 0;
-                printf("graceful\n");
                 return;
             }
         }
