@@ -85,11 +85,39 @@ BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator&
     map_config.n_bots = 0;
     MapGen robot_map(map_config);
 
+    // create path search config
+    PathSearch::Config path_search_config;
+    path_search_config.travel_time = [this](const NodePtr& prev, const NodePtr& cur,
+                                             const NodePtr& next) {
+        return customTravelTime(prev, cur, next);
+    };
+
+    // build destination candidates vector
+    Nodes dst_candidates;
     for (const auto order_begin = order_cur;
             order_cur != order_begin + _map.bots.size() && order_cur != order_end; ++order_cur) {
         printf("%d, ", *order_cur);
+        auto& bin_loc = _bin_path_planner.getPathSync()
+                                .getPaths()
+                                .at(std::to_string(*order_cur))
+                                .path.front()
+                                .node;
+        dst_candidates.emplace_back(bin_loc);
     }
-    puts("end chunk");
+    puts("end");
+
+    // build robot path requests
+    _path_requests.clear();
+    for (size_t i = 0; i < _map.bots.size(); ++i) {
+        int robot_id = 0;
+        path_search_config.agent_id = "robot" + std::to_string(robot_id++);
+        /*
+        MultiPathPlanner::Request request{
+                dst, FLT_MAX, path_search_config, {{src}, _config.iterations, fallback_cost}};
+        _path_requests.emplace_back(std::move(request));
+        */
+    }
+
     return SUCCESS;
 }
 
@@ -215,7 +243,7 @@ void BinRouter::generateTraversalOrder(
         // log in traversal order but filter out trivial paths
         if (visit_count[id] == 1 && path.size() > 1) {
             traversal_order.push_back(id);
-            printf("done %d\n", id);
+            // printf("done %d\n", id);
         }
         // increment visit count
         if (visit_count[id] < 255) {
@@ -224,7 +252,7 @@ void BinRouter::generateTraversalOrder(
     }
 
     for (int id : traversal_order) {
-        printf(">%d", id);
+        printf("->%d", id);
     }
     puts("");
 }

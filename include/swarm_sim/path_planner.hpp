@@ -67,7 +67,7 @@ private:
     const Request* _requests;
     Config _config;
 
-    std::atomic<int> _countdown;
+    int _countdown;
     std::shared_mutex _shared_mutex;
 };
 

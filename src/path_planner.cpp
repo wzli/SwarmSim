@@ -69,8 +69,7 @@ PathSearch::Error MultiPathPlanner::plan(
 
 void MultiPathPlanner::thread_loop(size_t idx) {
     size_t path_id = 0;
-    while (_countdown > 0) {
-        --_countdown;
+    while (true) {
         auto& request = _requests[idx];
         auto& planner = _path_planners[idx];
         auto& result = _results[idx];
@@ -78,46 +77,58 @@ void MultiPathPlanner::thread_loop(size_t idx) {
         // replan path only requires read access
         {
             std::shared_lock lock(_shared_mutex);
+            if (_countdown <= 0) {
+                return;
+            }
             search_error = planner.replan(request.args);
         }
         // enter write lock
         {
             std::unique_lock lock(_shared_mutex);
+            if (_countdown <= 0) {
+                return;
+            }
+            --_countdown;
+            if (!_countdown) {
+                printf("out of iter\n");
+            }
+
             result = {search_error};
             // terminate search if error occurered
             if (search_error > PathSearch::ITERATIONS_REACHED) {
                 _countdown = -search_error;
+                printf("search error %d\n", search_error);
                 return;
             }
             // otherwise add to path sync
             result.sync_error =
                     _path_sync.updatePath(planner.getId(), planner.getPath(), path_id++);
-        }
 
-        // terminate when all paths are satisfactory
-        if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
-                std::unique_lock lock(_shared_mutex);
-                // check if there are any stale fallback paths
-                int path_idx = &p - &_path_planners[0];
-                if (_results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
-                        std::any_of(p.getPath().begin(), p.getPath().end() - 1,
-                                [&p](const Visit& visit) {
-                                    return visit.node->state < Node::NO_PARKING &&
-                                           std::next(visit.node->auction.getBids().begin())
-                                                           ->second.bidder == p.getId();
-                                })) {
-                    p.getPathSearch().resetCostEstimates();
-                    return false;
-                }
-                // check paths are compatible with each other
-                auto& error = _results[path_idx].sync_error;
-                error = _path_sync.checkWaitStatus(p.getId()).error;
-                return error == PathSync::SUCCESS ||
-                       (error == PathSync::REMAINING_DURATION_INFINITE &&
-                               _config.allow_indefinite_block);
-            })) {
-            _countdown = 0;
-            return;
+            // terminate when all paths are satisfactory
+            if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
+                    // check if there are any stale fallback paths
+                    int path_idx = &p - &_path_planners[0];
+                    if (_results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
+                            std::any_of(p.getPath().begin(), p.getPath().end() - 1,
+                                    [&p](const Visit& visit) {
+                                        return visit.node->state < Node::NO_PARKING &&
+                                               std::next(visit.node->auction.getBids().begin())
+                                                               ->second.bidder == p.getId();
+                                    })) {
+                        p.getPathSearch().resetCostEstimates();
+                        return false;
+                    }
+                    // check paths are compatible with each other
+                    auto& error = _results[path_idx].sync_error;
+                    error = _path_sync.checkWaitStatus(p.getId()).error;
+                    return error == PathSync::SUCCESS ||
+                           (error == PathSync::REMAINING_DURATION_INFINITE &&
+                                   _config.allow_indefinite_block);
+                })) {
+                _countdown = 0;
+                printf("graceful\n");
+                return;
+            }
         }
 
         // select next path to plan

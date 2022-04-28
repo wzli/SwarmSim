@@ -12,7 +12,7 @@ TEST(map_gen, generate) {
     config.blocking_fallback_cost = 10.0f;
     config.iterations = 100000;
     // multi path planner config
-    config.planner_config.rounds = 200;
+    config.planner_config.rounds = 1000;
     config.planner_config.n_threads = 8;
     config.planner_config.allow_indefinite_block = false;
     // map gen config
