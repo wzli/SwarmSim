@@ -17,7 +17,7 @@ public:
         REQUEST_BIN_NODE_NOT_FOUND,
         REQUEST_BIN_NODE_NOT_PARKABLE,
         GENERATE_BIN_PATHS_FAIL,
-        FAILURE,
+        GENERATE_ROBOT_PATHS_FAIL,
     };
 
     enum DataEntryType {

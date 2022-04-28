@@ -92,6 +92,7 @@ for floor in floors:
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
 
+    '''
     # plot markers for elevators robots and bins
     ax.plot(
         elevators[:, COL_X], elevators[:, COL_Y], "^", color="purple", markersize=10
@@ -106,6 +107,7 @@ for floor in floors:
         ax.text(bins[i, COL_X], bins[i, COL_Y], 0, int(label), ha="center", va="center")
     for i, label in enumerate(bots[:, COL_ID]):
         ax.text(bots[i, COL_X], bots[i, COL_Y], 0, int(label), ha="center", va="center")
+        '''
 
     # extract unique paths on current floor
     for path_id in np.unique(paths[:, COL_ID]):

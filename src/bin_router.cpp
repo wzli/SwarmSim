@@ -94,30 +94,70 @@ BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator&
 
     // build destination candidates vector
     Nodes dst_candidates;
+    std::unordered_map<NodePtr, std::pair<int, NodePtr>> dst_map;
     for (const auto order_begin = order_cur;
             order_cur != order_begin + _map.bots.size() && order_cur != order_end; ++order_cur) {
         printf("%d, ", *order_cur);
-        auto& bin_loc = _bin_path_planner.getPathSync()
-                                .getPaths()
-                                .at(std::to_string(*order_cur))
-                                .path.front()
-                                .node;
-        dst_candidates.emplace_back(bin_loc);
+        auto& bin_path =
+                _bin_path_planner.getPathSync().getPaths().at(std::to_string(*order_cur)).path;
+        auto bin_position = bin_path.front().node->position;
+        auto bin_node = robot_map.graph.findNode(bin_position);
+        assert(bin_node);
+        dst_candidates.emplace_back(bin_node);
+        dst_map.emplace(bin_node, std::pair<int, NodePtr>{*order_cur, bin_path.back().node});
     }
     puts("end");
 
     // build robot path requests
     _path_requests.clear();
     for (size_t i = 0; i < _map.bots.size(); ++i) {
-        int robot_id = 0;
-        path_search_config.agent_id = "robot" + std::to_string(robot_id++);
-        /*
-        MultiPathPlanner::Request request{
-                dst, FLT_MAX, path_search_config, {{src}, _config.iterations, fallback_cost}};
+        NodePtr robot_loc = robot_map.graph.findNode(_map.bots[i]->position);
+        assert(robot_loc);
+        path_search_config.agent_id = "robot" + std::to_string(i);
+        float fallback_cost = _config.fallback_cost;
+        // need to lower fallback costs and increase price increment when there are less
+        // destinations than robots otherwise they keep competing until out of iterations
+        if (dst_candidates.size() < _map.bots.size()) {
+            fallback_cost /= 10;
+            path_search_config.price_increment *= 10;
+        }
+        MultiPathPlanner::Request request{dst_candidates, FLT_MAX, path_search_config,
+                {{robot_loc}, _config.iterations, fallback_cost}};
         _path_requests.emplace_back(std::move(request));
-        */
     }
 
+    // plan robot routes
+    _robot_path_planner.plan(_config.planner_config, _path_requests);
+
+    auto& path_sync = _robot_path_planner.getPathSync();
+    /*
+    if (save_file) {
+        auto fp = fopen("bot.csv", "w");
+        savePaths(path_sync, fp);
+        fclose(fp);
+    }
+    */
+    auto& results = _robot_path_planner.getResults();
+    for (size_t i = 0; i < results.size(); ++i) {
+        // skip bins that don't move
+        auto& path = path_sync.getPaths().at("robot" + std::to_string(i)).path;
+        printf("robot id %ld search %d sync %d length %ld\n", i, results[i].search_error,
+                results[i].sync_error, path.size());
+        // return GENERATE_ROBOT_PATHS_FAIL;
+        if (results[i].search_error > PathSearch::FALLBACK_DIVERTED || results[i].sync_error) {
+            return GENERATE_ROBOT_PATHS_FAIL;
+        }
+        // move bin and robot to destination of bin
+        if (results[i].search_error == PathSearch::SUCCESS) {
+            auto [bin_id, bin_dst_node] = dst_map.at(path.back().node);
+            _map.bots[i] = bin_dst_node;
+            _map.bins[bin_id] = bin_dst_node;
+        } else if (results[i].search_error == PathSearch::FALLBACK_DIVERTED) {
+            auto dst_node = _map.graph.findNode(path.back().node->position);
+            assert(dst_node);
+            _map.bots[i] = dst_node;
+        }
+    }
     return SUCCESS;
 }
 

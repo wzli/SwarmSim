@@ -81,6 +81,11 @@ void MultiPathPlanner::thread_loop(size_t idx) {
                 return;
             }
             search_error = planner.replan(request.args);
+            /*
+            printf("idx %d e %d p %f c %f fb %f\n", idx, search_error,
+                    planner.getPath().back().price, planner.getPath().back().cost_estimate,
+                    request.args.fallback_cost);
+            */
         }
         // enter write lock
         {
@@ -108,7 +113,9 @@ void MultiPathPlanner::thread_loop(size_t idx) {
             if (std::all_of(_path_planners.begin(), _path_planners.end(), [&](PathPlanner& p) {
                     // check if there are any stale fallback paths
                     int path_idx = &p - &_path_planners[0];
-                    if (_results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
+                    if ((_requests[path_idx].dst.empty() ||
+                                _requests[path_idx].dst[0] == p.getPath().front().node) &&
+                            _results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
                             std::any_of(p.getPath().begin(), p.getPath().end() - 1,
                                     [&p](const Visit& visit) {
                                         return visit.node->state < Node::NO_PARKING &&
