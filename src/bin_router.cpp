@@ -38,28 +38,16 @@ BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const
     }
 
     // write static marker entries to data file
-    fprintf(fp, "type, id, x, y, z, t\r\n");
-    int id = 0;
-    for (auto& ele : _map.elevators) {
-        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", ELEVATOR, id++, ele->position.get<0>(),
-                ele->position.get<1>(), ele->position.get<2>(), 0);
-    }
-    id = 0;
-    for (auto& bin : _map.bins) {
-        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", BIN, id++, bin->position.get<0>(),
-                bin->position.get<1>(), bin->position.get<2>(), 0);
-    }
-    id = 0;
-    for (auto& bot : _map.bots) {
-        fprintf(fp, "%u, %u, %f, %f, %f, %d\r\n", ROBOT, id++, bot->position.get<0>(),
-                bot->position.get<1>(), bot->position.get<2>(), 0);
-    }
+    int stage = 0;
+    fprintf(fp, "stage, type, id, x, y, z, t\r\n");
+    saveEntities(fp, stage);
 
     // generate bin routes
-    if (Error error = generateBinPaths(dst_vec, fp)) {
+    if (Error error = generateBinPaths(dst_vec)) {
         fclose(fp);
         return error;
     }
+    savePaths(_bin_path_planner.getPathSync(), fp, stage++);
 
     // generate traversal order of bin routes
     std::vector<int> order;
@@ -67,10 +55,12 @@ BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const
 
     // generate bin paths by processing one chunk of the traversal at a time
     for (auto cur = order.cbegin(); cur != order.cend();) {
-        if (Error error = generateRobotPaths(cur, order.cend(), fp)) {
+        saveEntities(fp, stage);
+        if (Error error = generateRobotPaths(cur, order.cend())) {
             fclose(fp);
             return error;
         }
+        savePaths(_robot_path_planner.getPathSync(), fp, stage++);
     }
 
     fclose(fp);
@@ -78,7 +68,7 @@ BinRouter::Error BinRouter::solve(const std::vector<BinRequest>& requests, const
 }
 
 BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator& order_cur,
-        const std::vector<int>::const_iterator order_end, FILE* save_file) {
+        const std::vector<int>::const_iterator order_end) {
     // create new empty graph from config
     MapGen::Config map_config = _config.map_gen_config;
     map_config.n_bins = 0;
@@ -113,7 +103,7 @@ BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator&
     for (size_t i = 0; i < _map.bots.size(); ++i) {
         NodePtr robot_loc = robot_map.graph.findNode(_map.bots[i]->position);
         assert(robot_loc);
-        path_search_config.agent_id = "robot" + std::to_string(i);
+        path_search_config.agent_id = std::to_string(i);
         float fallback_cost = _config.fallback_cost;
         // need to lower fallback costs and increase price increment when there are less
         // destinations than robots otherwise they keep competing until out of iterations
@@ -130,17 +120,10 @@ BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator&
     _robot_path_planner.plan(_config.planner_config, _path_requests);
 
     auto& path_sync = _robot_path_planner.getPathSync();
-    /*
-    if (save_file) {
-        auto fp = fopen("bot.csv", "w");
-        savePaths(path_sync, fp);
-        fclose(fp);
-    }
-    */
     auto& results = _robot_path_planner.getResults();
     for (size_t i = 0; i < results.size(); ++i) {
         // skip bins that don't move
-        auto& path = path_sync.getPaths().at("robot" + std::to_string(i)).path;
+        auto& path = path_sync.getPaths().at(std::to_string(i)).path;
         printf("robot id %ld search %d sync %d length %ld\n", i, results[i].search_error,
                 results[i].sync_error, path.size());
         // return GENERATE_ROBOT_PATHS_FAIL;
@@ -161,7 +144,7 @@ BinRouter::Error BinRouter::generateRobotPaths(std::vector<int>::const_iterator&
     return SUCCESS;
 }
 
-BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec, FILE* save_file) {
+BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec) {
     auto& src_vec = _map.bins;
     assert(src_vec.size() == dst_vec.size());
     _path_requests.clear();
@@ -186,9 +169,6 @@ BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec, 
     // plan routes
     _bin_path_planner.plan(_config.planner_config, _path_requests);
     auto& path_sync = _bin_path_planner.getPathSync();
-    if (save_file) {
-        savePaths(path_sync, save_file);
-    }
     auto& results = _bin_path_planner.getResults();
     for (size_t i = 0; i < results.size(); ++i) {
         // skip bins that don't move
@@ -205,7 +185,26 @@ BinRouter::Error BinRouter::generateBinPaths(const std::vector<Nodes>& dst_vec, 
     return SUCCESS;
 }
 
-void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file) {
+void BinRouter::saveEntities(FILE* save_file, int stage) {
+    assert(save_file);
+    int id = 0;
+    for (auto& ele : _map.elevators) {
+        fprintf(save_file, "%d, %u, %u, %f, %f, %f, %d\r\n", stage, ELEVATOR, id++,
+                ele->position.get<0>(), ele->position.get<1>(), ele->position.get<2>(), 0);
+    }
+    id = 0;
+    for (auto& bin : _map.bins) {
+        fprintf(save_file, "%d, %u, %u, %f, %f, %f, %d\r\n", stage, BIN, id++,
+                bin->position.get<0>(), bin->position.get<1>(), bin->position.get<2>(), 0);
+    }
+    id = 0;
+    for (auto& bot : _map.bots) {
+        fprintf(save_file, "%d, %u, %u, %f, %f, %f, %d\r\n", stage, ROBOT, id++,
+                bot->position.get<0>(), bot->position.get<1>(), bot->position.get<2>(), 0);
+    }
+}
+
+void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file, int stage) {
     assert(save_file);
     for (auto& [id, info] : path_sync.getPaths()) {
         if (info.path.size() < 2) {
@@ -215,7 +214,7 @@ void BinRouter::savePaths(const PathSync& path_sync, FILE* save_file) {
             auto& bids = visit->node->auction.getBids();
             // lambda to save a csv entry
             auto save_entry = [&](int z_offset) {
-                fprintf(save_file, "%u, %d, %f, %f, %f, %ld\r\n", PATH, std::stoi(id),
+                fprintf(save_file, "%d, %u, %d, %f, %f, %f, %ld\r\n", stage, PATH, std::stoi(id),
                         visit->node->position.get<0>(), visit->node->position.get<1>(),
                         (visit + z_offset)->node->position.get<2>(),
                         std::distance(bids.find(visit->price), bids.end()) - 1);

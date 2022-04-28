@@ -114,7 +114,8 @@ void MultiPathPlanner::thread_loop(size_t idx) {
                     // check if there are any stale fallback paths
                     int path_idx = &p - &_path_planners[0];
                     if ((_requests[path_idx].dst.empty() ||
-                                _requests[path_idx].dst[0] == p.getPath().front().node) &&
+                                (!p.getPath().empty() &&
+                                        _requests[path_idx].dst[0] == p.getPath().front().node)) &&
                             _results[path_idx].search_error == PathSearch::FALLBACK_DIVERTED &&
                             std::any_of(p.getPath().begin(), p.getPath().end() - 1,
                                     [&p](const Visit& visit) {

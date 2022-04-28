@@ -53,12 +53,13 @@ public:
 private:
     float customTravelTime(const NodePtr& prev, const NodePtr& cur, const NodePtr& next);
 
-    Error generateBinPaths(const std::vector<Nodes>& dst_vec, FILE* save_file = nullptr);
+    Error generateBinPaths(const std::vector<Nodes>& dst_vec);
     Error generateRobotPaths(std::vector<int>::const_iterator& order_cur,
-            const std::vector<int>::const_iterator order_end, FILE* save_file = nullptr);
+            const std::vector<int>::const_iterator order_end);
     void generateTraversalOrder(std::vector<int>& traversal_order, const PathSync& path_sync);
 
-    void savePaths(const PathSync& path_sync, FILE* save_file);
+    void saveEntities(FILE* save_file, int stage);
+    void savePaths(const PathSync& path_sync, FILE* save_file, int stage);
 
     MultiPathPlanner _bin_path_planner;
     MultiPathPlanner _robot_path_planner;
